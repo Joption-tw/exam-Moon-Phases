@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>月球位相與運行軌道互動教學</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #05070a;
+            color: #e2e8f0;
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .orbit-container {
+            background: radial-gradient(circle at center, #1a1c2c 0%, #05070a 100%);
+            position: relative;
+            overflow: hidden;
+            border-radius: 1rem;
+            height: 300px;
+        }
+        @media (min-width: 768px) {
+            .orbit-container { height: 450px; }
+        }
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            opacity: 0.5;
+        }
+        
+        .moon-view-container {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            margin-bottom: 1.5rem;
+        }
+        @media (min-width: 768px) {
+            .moon-view-container { width: 150px; height: 150px; }
+        }
+        
+        .moon-view {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            background-color: #1e293b; 
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+        .moon-part {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            width: 50%;
+        }
+        #moon-left { left: 0; }
+        #moon-right { left: 50%; }
+        #moon-flipper {
+            left: 25%;
+            width: 50%;
+            border-radius: 50%;
+            z-index: 2;
+            transition: transform 0.1s linear, background-color 0.1s linear;
+        }
+        
+        .light-color { background-color: #cbd5e1; } 
+        .dark-color { background-color: #1e293b; }  
+
+        .direction-label {
+            position: absolute;
+            font-size: 10px;
+            color: #64748b;
+            font-weight: bold;
+        }
+        
+        input[type=range] {
+            accent-color: #3b82f6;
+            height: 24px;
+        }
+
+        .quiz-card {
+            background-color: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .answer-box {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid #3b82f6;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl md:text-4xl font-bold text-blue-400 mb-2">月球位相與軌道互動教學</h1>
+            <p class="text-xs md:text-base text-slate-400">北極視角：逆時針運行 ↺ | 正午面對太陽</p>
+        </header>
+
+        <!-- 互動模擬區 -->
+        <div class="flex flex-col lg:grid lg:grid-cols-3 gap-6 mb-12">
+            <div class="lg:col-span-2 space-y-4">
+                <div class="bg-slate-900 p-3 md:p-4 rounded-2xl border border-slate-800 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-semibold flex items-center">
+                            <span class="mr-2">🔭</span> 系統俯視圖 (以北極為北方)
+                        </h2>
+                        <div class="hidden sm:block text-[10px] text-orange-400 font-bold bg-orange-950/30 px-2 py-1 rounded border border-orange-900/50">
+                            逆時針旋轉 ↺
+                        </div>
+                    </div>
+                    
+                    <div id="orbitDisplay" class="orbit-container border border-slate-700">
+                        <canvas id="orbitCanvas"></canvas>
+                    </div>
+                    
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                            <div class="flex justify-between items-center">
+                                <label class="text-xs font-bold text-slate-400">1. 月球位置 (公轉控制)</label>
+                                <span id="dayLabel" class="text-blue-400 font-bold bg-blue-900/30 px-2 py-1 rounded-full text-[10px]">第 0.0 天</span>
+                            </div>
+                            <input type="range" id="phaseSlider" min="0" max="360" value="0" step="1" class="w-full bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                            <div class="flex justify-between text-[9px] text-slate-500 px-1 font-medium">
+                                <span>新月</span><span>上弦</span><span>滿月</span><span>下弦</span><span>新月</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                            <div class="flex justify-between items-center">
+                                <label class="text-xs font-bold text-slate-400">2. 觀測者時間 (自轉控制)</label>
+                                <span id="timeLabel" class="text-orange-400 font-bold bg-orange-900/30 px-2 py-1 rounded-full text-[10px]">中午 12:00</span>
+                            </div>
+                            <input type="range" id="timeSlider" min="0" max="1440" value="720" step="1" class="w-full bg-slate-700 rounded-lg appearance-none cursor-pointer">
+                            <div class="flex justify-between text-[9px] text-slate-500 px-1 font-medium">
+                                <span>午夜</span><span>清晨</span><span>中午</span><span>黃昏</span><span>午夜</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col items-center text-center shadow-xl">
+                    <h2 class="text-lg font-semibold mb-4 self-start">
+                        <span class="mr-2">🌍</span> 您的觀測視野
+                    </h2>
+                    
+                    <div class="moon-view-container">
+                        <div class="direction-label" style="top: 50%; left: -22px; transform: translateY(-50%);">東</div>
+                        <div class="direction-label" style="top: 50%; right: -22px; transform: translateY(-50%);">西</div>
+                        <div class="moon-view">
+                            <div id="moon-left" class="moon-part"></div>
+                            <div id="moon-right" class="moon-part"></div>
+                            <div id="moon-flipper" class="moon-part"></div>
+                        </div>
+                    </div>
+
+                    <h3 id="phaseName" class="text-xl md:text-2xl font-bold text-white mb-1">新月 (朔)</h3>
+                    <p id="phaseDate" class="text-blue-400 text-xs mb-4 italic">農曆初一</p>
+                    
+                    <div class="w-full text-left space-y-2 bg-black/40 p-3 rounded-lg border border-slate-800">
+                        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">當前觀測狀態</p>
+                        <div id="visibilityStatus" class="text-xs leading-relaxed"></div>
+                    </div>
+                </div>
+
+                <div id="infoCard" class="bg-blue-900/10 p-5 rounded-2xl border border-blue-800/30">
+                    <h3 class="text-base font-bold text-blue-300 mb-2 flex items-center">
+                        <span class="mr-2">💡</span> 觀測要點
+                    </h3>
+                    <div id="infoContent" class="text-xs text-slate-400 leading-relaxed space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 歷屆會考題專區 -->
+        <section class="mt-8">
+            <h2 class="text-2xl font-bold text-blue-400 mb-6 flex items-center">
+                <span class="mr-3">📝</span> 歷屆會考挑戰 (與模擬訓練)
+            </h2>
+
+            <div class="quiz-card">
+                <span class="text-xs font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded mb-3 inline-block">112年會考 第18題</span>
+                <p class="text-slate-200 mb-4 font-medium leading-relaxed">
+                    已知日食發生時，太陽、月球、地球三者幾乎成一直線。若在台灣地區觀測到日全食，則當天三者的相對位置關係為何？
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-sm">
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(1)"> (A) 月球在日地之間 </div>
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(1)"> (B) 地球在日月之間 </div>
+                </div>
+                <button onclick="toggleAnswer(1)" class="text-blue-400 text-sm hover:underline">查看解答與解析</button>
+                <div id="ans1" class="answer-box text-sm">
+                    <p class="font-bold text-blue-300 mb-1">答案：(A)</p>
+                    <p class="text-slate-400">解析：日食必發生於「朔（新月）」，月球擋在太陽與地球之間。</p>
+                </div>
+            </div>
+
+            <div class="quiz-card">
+                <span class="text-xs font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded mb-3 inline-block">111年會考 第36題</span>
+                <p class="text-slate-200 mb-4 font-medium">某日，小明觀察到月球大約在 18:00 左右從東方升起。請問當天的月相最接近下列何者？</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-sm">
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(2)"> (A) 新月 </div>
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(2)"> (B) 滿月 </div>
+                </div>
+                <button onclick="toggleAnswer(2)" class="text-blue-400 text-sm hover:underline">查看解答與解析</button>
+                <div id="ans2" class="answer-box text-sm">
+                    <p class="font-bold text-blue-300 mb-1">答案：(B)</p>
+                    <p class="text-slate-400">解析：滿月（望）在太陽落下時升起，約 18:00 從東方地平線出現。</p>
+                </div>
+            </div>
+
+            <div class="quiz-card">
+                <span class="text-xs font-bold text-slate-500 bg-slate-800 px-2 py-1 rounded mb-3 inline-block">題目 3: 月食判定</span>
+                <p class="text-slate-200 mb-4 font-medium">當月全食發生時，月球位於模擬器中的哪個角度？</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-sm">
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(3)"> (A) 0° (新月位置) </div>
+                    <div class="p-3 border border-slate-800 rounded hover:border-blue-500 transition cursor-pointer" onclick="showAnswer(3)"> (B) 180° (滿月位置) </div>
+                </div>
+                <button onclick="toggleAnswer(3)" class="text-blue-400 text-sm hover:underline">查看解答與解析</button>
+                <div id="ans3" class="answer-box text-sm">
+                    <p class="font-bold text-blue-300 mb-1">答案：(B)</p>
+                    <p class="text-slate-400">解析：月食發生在「望（滿月）」，地球擋在太陽與月球之間。</p>
+                </div>
+            </div>
+            
+            <div class="quiz-card text-center py-8 bg-slate-900/50 border-dashed border-2 border-slate-800">
+                <p class="text-slate-500 text-sm italic">點擊下方可探索更多模擬挑戰題目...</p>
+            </div>
+        </section>
+
+        <!-- 原有的知識卡片區 -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6 opacity-60">
+            <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
+                <h4 class="font-bold text-white mb-2">為什麼每天升起時間不同？</h4>
+                <p class="text-sm text-slate-400">
+                    因為月球繞地球公轉的方向與地球自轉方向相同，當地球自轉一圈時，月球也往前移了一點，所以地球要再多轉約 $50$ 分鐘才能再次看到月球升起。
+                </p>
+            </div>
+            <div class="bg-slate-900/50 p-6 rounded-xl border border-slate-800">
+                <h4 class="font-bold text-white mb-2">簡易口訣：上西下東</h4>
+                <p class="text-sm text-slate-400">
+                    <b>上弦月</b>亮的是「西側」（右邊），出現在「上半夜」；<b>下弦月</b>亮的是「東側」（左邊），出現在「下半夜」。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('orbitCanvas');
+        const ctx = canvas.getContext('2d');
+        const phaseSlider = document.getElementById('phaseSlider');
+        const timeSlider = document.getElementById('timeSlider');
+        const dayLabel = document.getElementById('dayLabel');
+        const timeLabel = document.getElementById('timeLabel');
+        const phaseNameDisplay = document.getElementById('phaseName');
+        const phaseDateDisplay = document.getElementById('phaseDate');
+        
+        const moonLeft = document.getElementById('moon-left');
+        const moonRight = document.getElementById('moon-right');
+        const moonFlipper = document.getElementById('moon-flipper');
+        
+        const infoContent = document.getElementById('infoContent');
+        const visibilityStatus = document.getElementById('visibilityStatus');
+
+        function resizeCanvas() {
+            const container = document.getElementById('orbitDisplay');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            refresh();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        const phaseInfo = [
+            { angle: 0, name: "新月 (朔)", date: "農曆初一", desc: "月球在太陽方向，受光面背向地球。", rise: "06:00", set: "18:00" },
+            { angle: 90, name: "上弦月", date: "農曆初七、八", desc: "亮面朝向西(右)。中午升起，黃昏在正南方。", rise: "12:00", set: "00:00" },
+            { angle: 180, name: "滿月 (望)", date: "農曆十五、十六", desc: "月亮完全面向太陽，受光面全部可見。", rise: "18:00", set: "06:00" },
+            { angle: 270, name: "下弦月", date: "農曆二十二、三", desc: "亮面朝向東(左)。半夜升起，清晨在正南方。", rise: "00:00", set: "12:00" }
+        ];
+
+        function getInterpolatedInfo(angle) {
+            let closest = phaseInfo[0];
+            for (let i = phaseInfo.length - 1; i >= 0; i--) {
+                if (angle >= phaseInfo[i].angle) { closest = phaseInfo[i]; break; }
+            }
+            return closest;
+        }
+
+        function drawSun() {
+            const xBase = canvas.width - 60;
+            const yCenter = canvas.height / 2;
+            const grad = ctx.createRadialGradient(xBase + 30, yCenter, 2, xBase + 30, yCenter, 40);
+            grad.addColorStop(0, '#fbbf24');
+            grad.addColorStop(1, 'transparent');
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(xBase + 30, yCenter, 40, 0, Math.PI * 2); ctx.fill();
+
+            // 標註 太陽 (已移除括號)
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('太陽', xBase + 30, yCenter);
+
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 1.5;
+            for (let i = -1; i <= 1; i++) {
+                const y = yCenter + i * 40;
+                ctx.beginPath();
+                ctx.moveTo(xBase + 10, y); ctx.lineTo(xBase - 25, y);
+                ctx.lineTo(xBase - 18, y - 4); ctx.moveTo(xBase - 25, y); ctx.lineTo(xBase - 18, y + 4);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'right';
+            ctx.fillText('太陽光', xBase - 30, yCenter - 65);
+        }
+
+        function drawOrbit() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawSun();
+            
+            const centerX = canvas.width / 2 - 20;
+            const centerY = canvas.height / 2;
+            const orbitRadius = Math.min(canvas.width, canvas.height) * 0.35;
+            const earthRadius = 24;
+            
+            const moonDeg = parseInt(phaseSlider.value);
+            const moonRad = (moonDeg * Math.PI) / 180;
+            const moonX = centerX + Math.cos(moonRad) * orbitRadius;
+            const moonY = centerY - Math.sin(moonRad) * orbitRadius;
+
+            const timeMin = parseInt(timeSlider.value);
+            const timeDeg = ((timeMin - 720) / 1440) * 360; 
+            const timeRad = (timeDeg * Math.PI) / 180;
+            const obsX = centerX + Math.cos(timeRad) * earthRadius;
+            const obsY = centerY - Math.sin(timeRad) * earthRadius;
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, orbitRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
+
+            // 2. 地球
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, earthRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#3b82f6'; ctx.fill();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, earthRadius, Math.PI/2, -Math.PI/2, false);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; ctx.fill();
+
+            // 標註 地 (已移除括號)
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('地', centerX, centerY);
+
+            const lineLen = orbitRadius * 0.55;
+            const eastX = obsX - Math.sin(timeRad) * lineLen;
+            const eastY = obsY - Math.cos(timeRad) * lineLen;
+            const westX = obsX + Math.sin(timeRad) * lineLen;
+            const westY = obsY + Math.cos(timeRad) * lineLen;
+
+            ctx.beginPath();
+            ctx.moveTo(eastX, eastY); ctx.lineTo(westX, westY);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('東', eastX - Math.cos(timeRad) * 8, eastY + Math.sin(timeRad) * 8);
+            ctx.fillText('西', westX - Math.cos(timeRad) * 8, westY + Math.sin(timeRad) * 8);
+
+            ctx.save();
+            ctx.translate(obsX, obsY);
+            ctx.rotate(-timeRad + Math.PI / 2);
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(0, -10, 2.5, 0, Math.PI * 2); 
+            ctx.moveTo(0, -7.5); ctx.lineTo(0, -3); 
+            ctx.moveTo(-4, -6); ctx.lineTo(4, -6); 
+            ctx.moveTo(0, -3); ctx.lineTo(-3, 0); ctx.moveTo(0, -3); ctx.lineTo(3, 0);
+            ctx.stroke();
+            ctx.restore();
+
+            // 4. 月球
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, 10, 0, Math.PI * 2);
+            ctx.fillStyle = '#cbd5e1'; ctx.fill();
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, 10, Math.PI/2, -Math.PI/2, false);
+            ctx.fillStyle = '#1e293b'; ctx.fill();
+
+            // 標註 月 (已移除括號)
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('月', moonX, moonY);
+
+            checkVisibility(timeDeg, moonDeg);
+        }
+
+        function checkVisibility(obsDeg, moonDeg) {
+            function getDiff(a, b) {
+                let d = Math.abs(a - b) % 360;
+                return d > 180 ? 360 - d : d;
+            }
+            const canSeeSun = getDiff(obsDeg, 0) < 90;
+            const canSeeMoon = getDiff(obsDeg, moonDeg) < 90;
+
+            visibilityStatus.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-slate-400 text-[10px]">☀️ 太陽</span>
+                    <span class="${canSeeSun ? 'text-yellow-400 font-bold' : 'text-slate-600'} text-[10px]">${canSeeSun ? '可觀測 (日間)' : '不可見'}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400 text-[10px]">🌙 月球</span>
+                    <span class="${canSeeMoon ? 'text-blue-400 font-bold' : 'text-slate-600'} text-[10px]">${canSeeMoon ? '在地平線上' : '已落下'}</span>
+                </div>
+            `;
+        }
+
+        function updateLabels() {
+            const min = parseInt(timeSlider.value);
+            const h = Math.floor(min / 60);
+            const m = min % 60;
+            const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            let label = timeStr;
+            if (h === 12 && m === 0) label = "正午 12:00";
+            else if (h === 0 && m === 0) label = "午夜 00:00";
+            else if (h === 6 && m === 0) label = "清晨 06:00";
+            else if (h === 18 && m === 0) label = "黃昏 18:00";
+            timeLabel.innerText = label;
+
+            const deg = parseInt(phaseSlider.value);
+            dayLabel.innerText = `第 ${(deg / 360 * 29.53).toFixed(1)} 天`;
+        }
+
+        function updateMoonVisual() {
+            const deg = parseInt(phaseSlider.value) % 360;
+            const info = getInterpolatedInfo(deg);
+            phaseNameDisplay.innerText = info.name;
+            phaseDateDisplay.innerText = info.date;
+
+            infoContent.innerHTML = `
+                <p>${info.desc}</p>
+                <div class="flex gap-2">
+                    <div class="flex-1 bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                        <span class="block text-[9px] text-slate-500 uppercase">月升</span>
+                        <span class="text-xs font-mono text-blue-300">${info.rise}</span>
+                    </div>
+                    <div class="flex-1 bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                        <span class="block text-[9px] text-slate-500 uppercase">月落</span>
+                        <span class="text-xs font-mono text-blue-300">${info.set}</span>
+                    </div>
+                </div>
+            `;
+
+            if (deg <= 180) {
+                moonLeft.className = "moon-part dark-color";
+                moonRight.className = "moon-part light-color";
+                if (deg < 90) {
+                    const scale = 1 - (deg / 90);
+                    moonFlipper.className = "moon-part dark-color";
+                    moonFlipper.style.transform = `scaleX(${scale})`;
+                } else {
+                    const scale = (deg - 90) / 90;
+                    moonFlipper.className = "moon-part light-color";
+                    moonFlipper.style.transform = `scaleX(${scale})`;
+                }
+            } else {
+                moonLeft.className = "moon-part light-color";
+                moonRight.className = "moon-part dark-color";
+                if (deg < 270) {
+                    const scale = (deg - 180) / 90;
+                    moonFlipper.className = "moon-part light-color";
+                    moonFlipper.style.transform = `scaleX(${scale})`;
+                } else {
+                    const scale = 1 - ((deg - 270) / 90);
+                    moonFlipper.className = "moon-part dark-color";
+                    moonFlipper.style.transform = `scaleX(${scale})`;
+                }
+            }
+        }
+
+        function toggleAnswer(id) {
+            const ans = document.getElementById('ans' + id);
+            ans.style.display = (ans.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function showAnswer(id) {
+            const ans = document.getElementById('ans' + id);
+            ans.style.display = 'block';
+        }
+
+        function refresh() {
+            updateLabels();
+            updateMoonVisual();
+            drawOrbit();
+        }
+
+        phaseSlider.addEventListener('input', refresh);
+        timeSlider.addEventListener('input', refresh);
+        
+        resizeCanvas();
+
+        const container = document.getElementById('orbitDisplay');
+        for(let i=0; i<40; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            const size = Math.random() * 1.5;
+            star.style.width = size + 'px'; star.style.height = size + 'px';
+            star.style.top = Math.random() * 100 + '%'; star.style.left = Math.random() * 100 + '%';
+            container.appendChild(star);
+        }
+    </script>
+</body>
+</html>
